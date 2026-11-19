@@ -1,26 +1,113 @@
 import curses
 import glob
+import json
 import os
 import subprocess
 
 
 def obtener_jsons():
-    rutas = ["*.json", os.path.expanduser("~/Alineaciones-Fut/*.json")]
-    archivos = []
+    rutas = [
+        "*.json",
+        os.path.expanduser("~/*.json"),
+        os.path.expanduser("~/Alineaciones-Fut/*.json"),
+        os.path.expanduser("~/downloads/*.json"),
+    ]
+    encontrados = []
     for ruta in rutas:
-        archivos.extend(glob.glob(ruta))
-    return sorted(list(set(os.path.basename(f) for f in archivos)))
+        for archivo in glob.glob(ruta):
+            ruta_abs = os.path.abspath(archivo)
+            if ruta_abs not in encontrados:
+                encontrados.append(ruta_abs)
+    return sorted(encontrados)
 
 
-def mostrar_pantalla(body_win, titulo, lineas):
-    body_win.erase()
-    body_win.box()
-    body_win.addstr(2, 4, titulo, curses.A_BOLD | curses.A_UNDERLINE)
-    for idx, linea in enumerate(lineas):
-        body_win.addstr(4 + idx, 4, linea[:60])
-    body_win.addstr(12, 4, "Presioná cualquier tecla para volver al menú...", curses.A_DIM)
-    body_win.refresh()
-    body_win.getch()
+def ver_contenido_json(stdscr, ruta_json):
+    try:
+        with open(ruta_json, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        texto = json.dumps(data, indent=2, ensure_ascii=False)
+    except Exception as e:
+        texto = f"Error al leer el archivo:\n{e}"
+
+    lineas = texto.splitlines() or ["(Archivo vacío)"]
+    scroll = 0
+
+    while True:
+        stdscr.erase()
+        max_y, max_x = stdscr.getmaxyx()
+        alto_util = max(3, max_y - 4)
+
+        stdscr.addstr(0, 2, f"Archivo: {os.path.basename(ruta_json)}"[: max_x - 4], curses.A_BOLD)
+        stdscr.addstr(1, 2, "↑/↓ o j/k: desplazar | q o ESC: volver"[: max_x - 4], curses.A_DIM)
+
+        for i in range(alto_util):
+            idx = scroll + i
+            if idx < len(lineas):
+                stdscr.addstr(2 + i, 2, lineas[idx][: max_x - 4])
+
+        stdscr.addstr(max_y - 1, 2, f"Líneas {min(scroll + 1, len(lineas))}-{min(scroll + alto_util, len(lineas))} de {len(lineas)}"[: max_x - 4], curses.A_REVERSE)
+        stdscr.refresh()
+
+        tecla = stdscr.getch()
+        if tecla in (ord("q"), ord("Q"), 27):
+            break
+        elif tecla in (curses.KEY_UP, ord("k")) and scroll > 0:
+            scroll -= 1
+        elif tecla in (curses.KEY_DOWN, ord("j")) and scroll + alto_util < len(lineas):
+            scroll += 1
+
+
+def menu_jsons(stdscr):
+    archivos = obtener_jsons()
+    if not archivos:
+        stdscr.erase()
+        stdscr.addstr(2, 4, "No se encontraron archivos .json.", curses.A_BOLD)
+        stdscr.addstr(4, 4, "Presioná cualquier tecla para volver...", curses.A_DIM)
+        stdscr.refresh()
+        stdscr.getch()
+        return
+
+    sel = 0
+    while True:
+        stdscr.erase()
+        max_y, max_x = stdscr.getmaxyx()
+
+        stdscr.addstr(1, 3, "FORMACIONES (.json) - Enter para abrir | q para volver", curses.A_BOLD | curses.A_UNDERLINE)
+
+        for idx, ruta in enumerate(archivos):
+            y = 3 + idx
+            if y >= max_y - 2:
+                break
+            nombre = os.path.basename(ruta)
+            if idx == sel:
+                stdscr.attron(curses.A_REVERSE | curses.A_BOLD)
+                stdscr.addstr(y, 5, f"> {nombre}"[: max_x - 8])
+                stdscr.attroff(curses.A_REVERSE | curses.A_BOLD)
+            else:
+                stdscr.addstr(y, 5, f"  {nombre}"[: max_x - 8])
+
+        stdscr.refresh()
+        tecla = stdscr.getch()
+
+        if tecla in (ord("q"), ord("Q"), 27):
+            break
+        elif tecla in (curses.KEY_UP, ord("k")):
+            sel = (sel - 1) % len(archivos)
+        elif tecla in (curses.KEY_DOWN, ord("j")):
+            sel = (sel + 1) % len(archivos)
+        elif tecla in (10, 13, curses.KEY_ENTER):
+            ver_contenido_json(stdscr, archivos[sel])
+
+
+def ejecutar_externo(stdscr, comando):
+    curses.endwin()
+    try:
+        subprocess.run(comando, shell=True)
+    except Exception as e:
+        print(f"Error al ejecutar '{comando}': {e}")
+    input("\nPresioná Enter para volver al menú...")
+    stdscr.keypad(True)
+    curses.curs_set(0)
 
 
 def main(stdscr):
@@ -28,14 +115,14 @@ def main(stdscr):
     stdscr.keypad(True)
     curses.start_color()
 
-    curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLUE)    # Header
-    curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)   # Body
-    curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_GREEN)   # Opción activa
-    curses.init_pair(4, curses.COLOR_BLACK, curses.COLOR_WHITE)   # Footer
-    curses.init_pair(5, curses.COLOR_RED, curses.COLOR_BLACK)     # Alerta tamaño
+    curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLUE)
+    curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
+    curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_GREEN)
+    curses.init_pair(4, curses.COLOR_BLACK, curses.COLOR_WHITE)
+    curses.init_pair(5, curses.COLOR_RED, curses.COLOR_BLACK)
 
     opciones = [
-        "Ver Banner y Estado",
+        "Abrir Kickoff",
         "Listar Formaciones (.json)",
         "Abrir Alineaciones (alineaciones.py)",
         "Salir",
@@ -46,9 +133,9 @@ def main(stdscr):
         stdscr.clear()
         max_y, max_x = stdscr.getmaxyx()
 
-        if max_y < 16 or max_x < 65:
+        if max_y < 14 or max_x < 55:
             stdscr.attron(curses.color_pair(5))
-            stdscr.addstr(0, 0, "Terminal muy chica. Agrandá la ventana (mínimo 65x16).")
+            stdscr.addstr(0, 0, "Terminal muy chica. Agrandá la ventana (mínimo 55x14).")
             stdscr.attroff(curses.color_pair(5))
             stdscr.refresh()
             stdscr.getch()
@@ -62,35 +149,27 @@ def main(stdscr):
         body_win = stdscr.derwin(body_h, max_x, header_h, 0)
         footer_win = stdscr.derwin(footer_h, max_x, max_y - footer_h, 0)
 
-        # Header
         header_win.bkgd(" ", curses.color_pair(1))
         header_win.box()
-        titulo_hdr = "DEBIAN 13 - MENÚ FÚTBOL"
-        pos_x = max(2, (max_x // 2) - (len(titulo_hdr) // 2))
-        header_win.addstr(1, pos_x, titulo_hdr, curses.A_BOLD)
+        titulo = "DEBIAN 13 - MENÚ FÚTBOL"
+        header_win.addstr(1, max(2, (max_x // 2) - (len(titulo) // 2)), titulo, curses.A_BOLD)
 
-        # Body
         body_win.bkgd(" ", curses.color_pair(2))
         body_win.box()
         body_win.addstr(2, 4, "Movete con ↑ / ↓ (o j / k) y presioná Enter:", curses.A_UNDERLINE)
 
-        inicio_y = 4
         for idx, opcion in enumerate(opciones):
-            y_pos = inicio_y + idx
-            x_pos = 6
+            y_pos = 4 + idx
             if idx == seleccion:
                 body_win.attron(curses.color_pair(3) | curses.A_BOLD)
-                body_win.addstr(y_pos, x_pos, f"> {opcion} ")
+                body_win.addstr(y_pos, 6, f"> {opcion} ")
                 body_win.attroff(curses.color_pair(3) | curses.A_BOLD)
             else:
-                body_win.addstr(y_pos, x_pos, f"  {opcion} ", curses.color_pair(2))
+                body_win.addstr(y_pos, 6, f"  {opcion} ", curses.color_pair(2))
 
-        # Footer
         footer_win.bkgd(" ", curses.color_pair(4))
         footer_win.box()
-        footer_win.addstr(1, 2, f"Seleccionado: {opciones[seleccion]}", curses.A_BOLD)
-        if max_x > 30:
-            footer_win.addstr(1, max_x - 26, "Controles: ↑, ↓, Enter", curses.A_DIM)
+        footer_win.addstr(1, 2, f"Seleccionado: {opciones[seleccion]}"[: max_x - 4], curses.A_BOLD)
 
         stdscr.refresh()
         tecla = stdscr.getch()
@@ -103,30 +182,13 @@ def main(stdscr):
             if seleccion == len(opciones) - 1:
                 break
             elif seleccion == 0:
-                jsons = obtener_jsons()
-                mostrar_pantalla(
-                    body_win,
-                    "ESTADO DEL SISTEMA",
-                    [
-                        "Sistema: Debian 13 (Python 3.13)",
-                        f"Archivos .json detectados: {len(jsons)}",
-                        "Alias activos: alineaciones / abrir",
-                    ],
-                )
+                ejecutar_externo(stdscr, "kickoff || kickoff-cli")
             elif seleccion == 1:
-                jsons = obtener_jsons()
-                lineas = jsons if jsons else ["No se encontraron archivos .json todavía."]
-                mostrar_pantalla(body_win, "FORMACIONES GUARDADAS", lineas)
+                menu_jsons(stdscr)
             elif seleccion == 2:
-                # Salimos temporalmente de curses para ejecutar alineaciones.py con input() normal
-                curses.endwin()
                 ruta_script = os.path.expanduser("~/Alineaciones-Fut/alineaciones.py")
-                if os.path.exists(ruta_script):
-                    subprocess.run(["python3", ruta_script])
-                else:
-                    subprocess.run(["python3", "alineaciones.py"])
-                stdscr.keypad(True)
-                curses.curs_set(0)
+                cmd = f"python3 {ruta_script}" if os.path.exists(ruta_script) else "python3 alineaciones.py"
+                ejecutar_externo(stdscr, cmd)
 
 
 if __name__ == "__main__":
