@@ -1,10 +1,27 @@
 import curses
+from datetime import datetime
 import glob
 import json
 import os
 import subprocess
+import urllib.error
+import urllib.request
 
 TITULO = "FULBO DEBI - MATI"
+CIUDAD_CLIMA = "Manuel+Alberti,Argentina"
+
+
+def obtener_clima(ciudad=CIUDAD_CLIMA):
+    url = f"https://wttr.in/{ciudad}?format=%c+%t+%C&lang=es"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "curl/7.88.1"})
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            texto = resp.read().decode("utf-8", errors="replace").strip()
+            if texto and "Unknown location" not in texto:
+                return " ".join(texto.split())
+    except (urllib.error.URLError, TimeoutError, Exception):
+        pass
+    return "Clima no disponible"
 
 
 def obtener_jsons():
@@ -119,10 +136,13 @@ def main(stdscr):
     curses.init_pair(1, curses.COLOR_RED, curses.COLOR_BLACK)
     rojo = curses.color_pair(1)
 
+    clima = obtener_clima()
+
     opciones = [
         "Abrir Kickoff",
         "Formaciones .json",
         "Abrir alineaciones.py",
+        "Actualizar clima",
         "Salir",
     ]
     seleccion = 0
@@ -131,10 +151,10 @@ def main(stdscr):
         stdscr.clear()
         max_y, max_x = stdscr.getmaxyx()
 
-        alto_box = min(13, max_y - 2)
-        ancho_box = min(46, max_x - 4)
+        alto_box = min(15, max_y - 2)
+        ancho_box = min(48, max_x - 4)
 
-        if alto_box < 9 or ancho_box < 28:
+        if alto_box < 11 or ancho_box < 30:
             stdscr.addstr(0, 0, "Ventana muy chica.", rojo | curses.A_BOLD)
             stdscr.refresh()
             stdscr.getch()
@@ -146,12 +166,20 @@ def main(stdscr):
         box_win = curses.newwin(alto_box, ancho_box, start_y, start_x)
         box_win.keypad(True)
 
+        hora_actual = datetime.now().strftime("%H:%M:%S")
+
         box_win.attron(rojo)
         box_win.box()
+
         titulo_corto = TITULO[: ancho_box - 4]
         x_titulo = max(2, (ancho_box - len(titulo_corto)) // 2)
         box_win.addstr(1, x_titulo, titulo_corto, rojo | curses.A_BOLD)
-        box_win.hline(2, 1, curses.ACS_HLINE, ancho_box - 2)
+
+        info_top = f"{hora_actual} | {clima}"[: ancho_box - 4]
+        x_info = max(2, (ancho_box - len(info_top)) // 2)
+        box_win.addstr(2, x_info, info_top, rojo)
+
+        box_win.hline(3, 1, curses.ACS_HLINE, ancho_box - 2)
 
         for idx, opcion in enumerate(opciones):
             y_pos = 4 + idx
@@ -185,9 +213,11 @@ def main(stdscr):
             elif seleccion == 1:
                 menu_jsons(stdscr, rojo)
             elif seleccion == 2:
-                ruta_script = os.path.expanduser("/home/mati/alineaciones.py")
+                ruta_script = os.path.expanduser("~/Alineaciones-Fut/alineaciones.py")
                 cmd = f"python3 {ruta_script}" if os.path.exists(ruta_script) else "python3 alineaciones.py"
                 ejecutar_externo(stdscr, cmd)
+            elif seleccion == 3:
+                clima = obtener_clima()
 
 
 if __name__ == "__main__":
