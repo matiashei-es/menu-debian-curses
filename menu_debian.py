@@ -185,7 +185,7 @@ def main(stdscr):
             elif seleccion == 1:
                 menu_jsons(stdscr, rojo)
             elif seleccion == 2:
-                ruta_script = os.path.expanduser("~/Alineaciones-Fut/alineaciones.py")
+                ruta_script = os.path.expanduser("/home/mati/alineaciones.py")
                 cmd = f"python3 {ruta_script}" if os.path.exists(ruta_script) else "python3 alineaciones.py"
                 ejecutar_externo(stdscr, cmd)
 
