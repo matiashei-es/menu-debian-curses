@@ -57,7 +57,7 @@ def ver_contenido_json(stdscr, ruta_json, color_rojo):
         alto_util = max(3, max_y - 4)
 
         stdscr.addstr(0, 2, f"Archivo: {os.path.basename(ruta_json)}"[: max_x - 4], color_rojo | curses.A_BOLD)
-        stdscr.addstr(1, 2, "↑/↓ o j/k: bajar/subir | q: volver"[: max_x - 4], color_rojo)
+        stdscr.addstr(1, 2, "↑/↓ o j/k: bajar/subir | [0]/q: volver"[: max_x - 4], color_rojo)
 
         for i in range(alto_util):
             idx = scroll + i
@@ -69,7 +69,7 @@ def ver_contenido_json(stdscr, ruta_json, color_rojo):
         stdscr.refresh()
 
         tecla = stdscr.getch()
-        if tecla in (ord("q"), ord("Q"), 27):
+        if tecla in (ord("0"), ord("q"), ord("Q"), 27):
             break
         elif tecla in (curses.KEY_UP, ord("k")) and scroll > 0:
             scroll -= 1
@@ -82,7 +82,7 @@ def menu_jsons(stdscr, color_rojo):
     if not archivos:
         stdscr.erase()
         stdscr.addstr(2, 4, "No se encontraron archivos .json.", color_rojo | curses.A_BOLD)
-        stdscr.addstr(4, 4, "Tecla para volver...", color_rojo)
+        stdscr.addstr(4, 4, "[0] o tecla para volver...", color_rojo)
         stdscr.refresh()
         stdscr.getch()
         return
@@ -91,11 +91,11 @@ def menu_jsons(stdscr, color_rojo):
     while True:
         stdscr.erase()
         max_y, max_x = stdscr.getmaxyx()
-        stdscr.addstr(1, 3, "JSON - Enter: abrir | q: volver", color_rojo | curses.A_BOLD | curses.A_UNDERLINE)
+        stdscr.addstr(1, 3, "JSON - Enter: abrir | [0] Volver al menú", color_rojo | curses.A_BOLD | curses.A_UNDERLINE)
 
         for idx, ruta in enumerate(archivos):
             y = 3 + idx
-            if y >= max_y - 2:
+            if y >= max_y - 3:
                 break
             nombre = os.path.basename(ruta)
             if idx == sel:
@@ -103,10 +103,13 @@ def menu_jsons(stdscr, color_rojo):
             else:
                 stdscr.addstr(y, 5, f"  {nombre}"[: max_x - 8], color_rojo)
 
+        y_volver = min(max_y - 2, 3 + len(archivos) + 1)
+        stdscr.addstr(y_volver, 5, "[0] Volver al menú"[: max_x - 8], color_rojo | curses.A_BOLD)
+
         stdscr.refresh()
         tecla = stdscr.getch()
 
-        if tecla in (ord("q"), ord("Q"), 27):
+        if tecla in (ord("0"), ord("q"), ord("Q"), 27):
             break
         elif tecla in (curses.KEY_UP, ord("k")):
             sel = (sel - 1) % len(archivos)
@@ -116,15 +119,33 @@ def menu_jsons(stdscr, color_rojo):
             ver_contenido_json(stdscr, archivos[sel], color_rojo)
 
 
-def ejecutar_externo(stdscr, comando):
+def ejecutar_externo(stdscr, comando, pausar=True):
     curses.endwin()
     try:
         subprocess.run(comando, shell=True)
     except Exception as e:
         print(f"Error al ejecutar '{comando}': {e}")
-    input("\nPresioná Enter para volver al menú...")
+    if pausar:
+        input("\nPresioná Enter para volver al menú...")
     stdscr.keypad(True)
     curses.curs_set(0)
+
+
+def activar_opcion(stdscr, idx, rojo, clima_ref):
+    if idx == 0:
+        ejecutar_externo(stdscr, "kickoff || kickoff-cli")
+    elif idx == 1:
+        menu_jsons(stdscr, rojo)
+    elif idx == 2:
+        ruta_script = os.path.expanduser("~/Alineaciones-Fut/alineaciones.py")
+        cmd = f"python3 {ruta_script}" if os.path.exists(ruta_script) else "python3 alineaciones.py"
+        ejecutar_externo(stdscr, cmd)
+    elif idx == 3:
+        clima_ref[0] = obtener_clima()
+    elif idx == 4:
+        ejecutar_externo(stdscr, "sudo reboot", pausar=False)
+    elif idx == 5:
+        ejecutar_externo(stdscr, "sudo poweroff", pausar=False)
 
 
 def main(stdscr):
@@ -136,13 +157,15 @@ def main(stdscr):
     curses.init_pair(1, curses.COLOR_RED, curses.COLOR_BLACK)
     rojo = curses.color_pair(1)
 
-    clima = obtener_clima()
+    clima_ref = [obtener_clima()]
 
     opciones = [
         "Abrir Kickoff",
         "Formaciones .json",
         "Abrir alineaciones.py",
         "Actualizar clima",
+        "Reiniciar VM",
+        "Apagar VM",
         "Salir",
     ]
     seleccion = 0
@@ -151,10 +174,10 @@ def main(stdscr):
         stdscr.clear()
         max_y, max_x = stdscr.getmaxyx()
 
-        alto_box = min(15, max_y - 2)
+        alto_box = min(17, max_y - 2)
         ancho_box = min(54, max_x - 4)
 
-        if alto_box < 11 or ancho_box < 30:
+        if alto_box < 13 or ancho_box < 32:
             stdscr.addstr(0, 0, "Ventana muy chica.", rojo | curses.A_BOLD)
             stdscr.refresh()
             stdscr.getch()
@@ -166,7 +189,7 @@ def main(stdscr):
         box_win = curses.newwin(alto_box, ancho_box, start_y, start_x)
         box_win.keypad(True)
 
-        hora_actual = datetime.now().strftime("%H:%M:%S")
+        fecha_hora = datetime.now().strftime("%d/%m %H:%M:%S")
 
         box_win.attron(rojo)
         box_win.box()
@@ -175,7 +198,7 @@ def main(stdscr):
         x_titulo = max(2, (ancho_box - len(titulo_corto)) // 2)
         box_win.addstr(1, x_titulo, titulo_corto, rojo | curses.A_BOLD)
 
-        info_top = f"{hora_actual} | {clima}"[: ancho_box - 6]
+        info_top = f"{fecha_hora} | {clima_ref[0]}"[: max(1, ancho_box - 6)]
         x_info = max(2, (ancho_box - len(info_top)) // 2)
         box_win.addstr(2, x_info, info_top, rojo)
 
@@ -185,14 +208,15 @@ def main(stdscr):
             y_pos = 4 + idx
             if y_pos >= alto_box - 2:
                 break
-            texto_op = f"> {opcion}" if idx == seleccion else f"  {opcion}"
+            etiqueta = f"[{idx + 1}] {opcion}" if idx < 6 else f"[q] {opcion}"
+            texto_op = f"> {etiqueta}" if idx == seleccion else f"  {etiqueta}"
             texto_op = texto_op[: ancho_box - 6]
             if idx == seleccion:
                 box_win.addstr(y_pos, 3, texto_op, rojo | curses.A_REVERSE | curses.A_BOLD)
             else:
                 box_win.addstr(y_pos, 3, texto_op, rojo)
 
-        ayuda = "↑/↓ + Enter"[: ancho_box - 4]
+        ayuda = "1-6 / ↑↓+Enter / [0] volver / q"[: ancho_box - 4]
         box_win.addstr(alto_box - 2, max(2, (ancho_box - len(ayuda)) // 2), ayuda, rojo | curses.A_DIM)
         box_win.attroff(rojo)
 
@@ -201,25 +225,21 @@ def main(stdscr):
 
         tecla = box_win.getch()
 
-        if tecla in (curses.KEY_UP, ord("k")):
+        if tecla in (ord("q"), ord("Q")):
+            break
+        elif tecla in (curses.KEY_UP, ord("k")):
             seleccion = (seleccion - 1) % len(opciones)
         elif tecla in (curses.KEY_DOWN, ord("j")):
             seleccion = (seleccion + 1) % len(opciones)
         elif tecla in (10, 13, curses.KEY_ENTER):
             if seleccion == len(opciones) - 1:
                 break
-            elif seleccion == 0:
-                ejecutar_externo(stdscr, "kickoff || kickoff-cli")
-            elif seleccion == 1:
-                menu_jsons(stdscr, rojo)
-            elif seleccion == 2:
-                ruta_script = os.path.expanduser("~/Alineaciones-Fut/alineaciones.py")
-                cmd = f"python3 {ruta_script}" if os.path.exists(ruta_script) else "python3 alineaciones.py"
-                ejecutar_externo(stdscr, cmd)
-            elif seleccion == 3:
-                clima = obtener_clima()
+            activar_opcion(stdscr, seleccion, rojo, clima_ref)
+        elif ord("1") <= tecla <= ord("6"):
+            idx_atajo = tecla - ord("1")
+            seleccion = idx_atajo
+            activar_opcion(stdscr, idx_atajo, rojo, clima_ref)
 
 
 if __name__ == "__main__":
     curses.wrapper(main)
-
