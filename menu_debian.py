@@ -75,43 +75,6 @@ def formatear_json_ordenado(data):
 
     return json.dumps(data, indent=2, ensure_ascii=False)
 
-
-def ver_contenido_json(stdscr, ruta_json, color_rojo):
-    try:
-        with open(ruta_json, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        texto = json.dumps(data, indent=2, ensure_ascii=False)
-    except Exception as e:
-        texto = f"Error al leer el archivo:\n{e}"
-
-    lineas = texto.splitlines() or ["(Archivo vacío)"]
-    scroll = 0
-
-    while True:
-        stdscr.erase()
-        max_y, max_x = stdscr.getmaxyx()
-        alto_util = max(3, max_y - 4)
-
-        stdscr.addstr(0, 2, f"Archivo: {os.path.basename(ruta_json)}"[: max_x - 4], color_rojo | curses.A_BOLD)
-        stdscr.addstr(1, 2, "↑/↓ o j/k: bajar/subir | [0]/q: volver"[: max_x - 4], color_rojo)
-
-        for i in range(alto_util):
-            idx = scroll + i
-            if idx < len(lineas):
-                stdscr.addstr(2 + i, 2, lineas[idx][: max_x - 4], color_rojo)
-
-        pie = f"Líneas {min(scroll + 1, len(lineas))}-{min(scroll + alto_util, len(lineas))} de {len(lineas)}"
-        stdscr.addstr(max_y - 1, 2, pie[: max_x - 4], color_rojo | curses.A_REVERSE)
-        stdscr.refresh()
-
-        tecla = stdscr.getch()
-        if tecla in (ord("0"), ord("q"), ord("Q"), 27):
-            break
-        elif tecla in (curses.KEY_UP, ord("k")) and scroll > 0:
-            scroll -= 1
-        elif tecla in (curses.KEY_DOWN, ord("j")) and scroll + alto_util < len(lineas):
-            scroll += 1
-
 def _dibujar_canchita(formacion, jugadores):
     if not jugadores:
         return []
@@ -170,6 +133,42 @@ def _dibujar_canchita(formacion, jugadores):
     return lineas
 
 
+def ver_contenido_json(stdscr, ruta_json, color_rojo):
+    try:
+        with open(ruta_json, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        texto = formatear_json_ordenado(data)
+
+    except Exception as e:
+        texto = f"Error al leer el archivo:\n{e}"
+
+    lineas = texto.splitlines() or ["(Archivo vacío)"]
+    scroll = 0
+
+    while True:
+        stdscr.erase()
+        max_y, max_x = stdscr.getmaxyx()
+        alto_util = max(3, max_y - 4)
+
+        stdscr.addstr(0, 2, f"Archivo: {os.path.basename(ruta_json)}"[: max_x - 4], color_rojo | curses.A_BOLD)
+        stdscr.addstr(1, 2, "↑/↓ o j/k: bajar/subir | [0]/q: volver"[: max_x - 4], color_rojo)
+
+        for i in range(alto_util):
+            idx = scroll + i
+            if idx < len(lineas):
+                stdscr.addstr(2 + i, 2, lineas[idx][: max_x - 4], color_rojo)
+
+        pie = f"Líneas {min(scroll + 1, len(lineas))}-{min(scroll + alto_util, len(lineas))} de {len(lineas)}"
+        stdscr.addstr(max_y - 1, 2, pie[: max_x - 4], color_rojo | curses.A_REVERSE)
+        stdscr.refresh()
+
+        tecla = stdscr.getch()
+        if tecla in (ord("0"), ord("q"), ord("Q"), 27):
+            break
+        elif tecla in (curses.KEY_UP, ord("k")) and scroll > 0:
+            scroll -= 1
+        elif tecla in (curses.KEY_DOWN, ord("j")) and scroll + alto_util < len(lineas):
+            scroll += 1
 
 
 def menu_jsons(stdscr, color_rojo):
