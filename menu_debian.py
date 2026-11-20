@@ -40,6 +40,100 @@ def obtener_jsons():
     return sorted(encontrados)
 
 
+def _dibujar_canchita(formacion, jugadores):
+    if not jugadores:
+        return []
+
+    # Intenta leer algo tipo "4-2-3-1" o "4-3-3"
+    partes = []
+    if isinstance(formacion, str):
+        for trozo in formacion.replace(" ", "").split("-"):
+            if trozo.isdigit():
+                partes.append(int(trozo))
+
+    lineas = []
+    ancho = 42
+    lineas.append("+" + "-" * (ancho - 2) + "+")
+
+    # Arquero (si hay al menos 1)
+    idx = 0
+    if idx < len(jugadores):
+        arq = str(jugadores[idx])[:14]
+        lineas.append(f"|{'[ARQ] ' + arq:^{ancho - 2}}|")
+        idx += 1
+
+    # Líneas de campo según la formación (de atrás hacia adelante)
+    if partes:
+        for cant in partes:
+            if idx >= len(jugadores):
+                break
+            grupo = [str(j)[:8] for j in jugadores[idx : idx + cant]]
+            idx += cant
+            espacio_hueco = max(1, (ancho - 2) // max(1, len(grupo)))
+            fila = [" "] * (ancho - 2)
+            for i, nombre in enumerate(grupo):
+                centro = int((i + 0.5) * espacio_hueco)
+                inicio = max(1, min(ancho - 2 - len(nombre), centro - len(nombre) // 2))
+                for c_idx, ch in enumerate(nombre):
+                    if inicio + c_idx < ancho - 2:
+                        fila[inicio + c_idx] = ch
+            lineas.append("|" + "".join(fila) + "|")
+    else:
+        # Si no hay formación válida, reparte el resto en filas de a 3
+        while idx < len(jugadores):
+            grupo = [str(j)[:10] for j in jugadores[idx : idx + 3]]
+            idx += 3
+            lineas.append(f"|{'  '.join(grupo):^{ancho - 2}}|")
+
+    # Suplentes / restantes si sobran jugadores
+    if idx < len(jugadores):
+        lineas.append("+" + "-" * (ancho - 2) + "+")
+        lineas.append(f"|{'Suplentes / Resto':^{ancho - 2}}|")
+        while idx < len(jugadores):
+            supl = str(jugadores[idx])[: ancho - 6]
+            lineas.append(f"|  - {supl:<{ancho - 6}}|")
+            idx += 1
+
+    lineas.append("+" + "-" * (ancho - 2) + "+")
+    return lineas
+
+
+def formatear_json_ordenado(data):
+    if isinstance(data, dict):
+        lineas = []
+        equipo = data.get("equipo")
+        formacion = data.get("formacion")
+        jugadores = data.get("jugadores")
+
+        cabecera = []
+        if equipo is not None:
+            cabecera.append(f"Equipo: {equipo}")
+        if formacion is not None:
+            cabecera.append(f"Formación: {formacion}")
+        if cabecera:
+            lineas.append(" | ".join(cabecera))
+            lineas.append("")
+
+        if isinstance(jugadores, list):
+            lineas.extend(_dibujar_canchita(formacion, jugadores))
+            return "\n".join(lineas)
+
+        for clave, valor in data.items():
+            if clave in ("equipo", "formacion", "jugadores"):
+                continue
+            if isinstance(valor, (dict, list)):
+                lineas.append(f"{clave.capitalize()}:")
+                for sub in json.dumps(valor, indent=2, ensure_ascii=False).splitlines():
+                    lineas.append(f"  {sub}")
+            else:
+                lineas.append(f"{clave.capitalize()}: {valor}")
+
+        if lineas:
+            return "\n".join(lineas)
+
+    return json.dumps(data, indent=2, ensure_ascii=False)
+
+
 def ver_contenido_json(stdscr, ruta_json, color_rojo):
     try:
         with open(ruta_json, "r", encoding="utf-8") as f:
