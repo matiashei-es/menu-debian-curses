@@ -12,7 +12,7 @@ CIUDAD_CLIMA = "Manuel+Alberti,Argentina"
 
 
 def obtener_clima(ciudad=CIUDAD_CLIMA):
-    url = f"https://wttr.in/{ciudad}?format=%c+%t+%C&lang=es"
+    url = f"https://wttr.in/{ciudad}?format=%t+%C&lang=es"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "curl/7.88.1"})
         with urllib.request.urlopen(req, timeout=3) as resp:
@@ -152,7 +152,7 @@ def main(stdscr):
         max_y, max_x = stdscr.getmaxyx()
 
         alto_box = min(15, max_y - 2)
-        ancho_box = min(48, max_x - 4)
+        ancho_box = min(54, max_x - 4)
 
         if alto_box < 11 or ancho_box < 30:
             stdscr.addstr(0, 0, "Ventana muy chica.", rojo | curses.A_BOLD)
@@ -175,7 +175,7 @@ def main(stdscr):
         x_titulo = max(2, (ancho_box - len(titulo_corto)) // 2)
         box_win.addstr(1, x_titulo, titulo_corto, rojo | curses.A_BOLD)
 
-        info_top = f"{hora_actual} | {clima}"[: ancho_box - 4]
+        info_top = f"{hora_actual} | {clima}"[: ancho_box - 6]
         x_info = max(2, (ancho_box - len(info_top)) // 2)
         box_win.addstr(2, x_info, info_top, rojo)
 
@@ -222,3 +222,4 @@ def main(stdscr):
 
 if __name__ == "__main__":
     curses.wrapper(main)
+
