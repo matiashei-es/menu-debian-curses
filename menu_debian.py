@@ -7,7 +7,7 @@ import subprocess
 import urllib.error
 import urllib.request
 
-TITULO = "FULBO DEBI - MATI"
+TITULO = "FURBO DT - MATI"
 CIUDAD_CLIMA = "Manuel+Alberti,Argentina"
 
 
@@ -137,7 +137,7 @@ def activar_opcion(stdscr, idx, rojo, clima_ref):
     elif idx == 1:
         menu_jsons(stdscr, rojo)
     elif idx == 2:
-        ruta_script = os.path.expanduser("~/Alineaciones-Fut/alineaciones.py")
+        ruta_script = os.path.expanduser("/home/mati/alineaciones.py")
         cmd = f"python3 {ruta_script}" if os.path.exists(ruta_script) else "python3 alineaciones.py"
         ejecutar_externo(stdscr, cmd)
     elif idx == 3:
@@ -243,3 +243,4 @@ def main(stdscr):
 
 if __name__ == "__main__":
     curses.wrapper(main)
+
